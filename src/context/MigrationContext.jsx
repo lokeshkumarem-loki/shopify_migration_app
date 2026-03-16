@@ -2,6 +2,7 @@ import { createContext, useContext, useState } from "react";
 
 const MigrationContext = createContext(null);
 
+// ── Shopify product CSV columns ───────────────────────────────────────────────
 const SHOPIFY_COLUMNS = [
   "Handle",
   "Title",
@@ -41,7 +42,10 @@ const SHOPIFY_COLUMNS = [
   "Status",
 ];
 
+// ── Robust RFC-4180 CSV / TSV parser ─────────────────────────────────────────
+// Handles: quoted fields, embedded commas, embedded newlines, escaped quotes ("")
 function parseCSV(text) {
+  // Detect delimiter from first line
   const firstNewline = text.indexOf("\n");
   const firstLine = firstNewline > -1 ? text.slice(0, firstNewline) : text;
   const delimiter = firstLine.includes("\t") ? "\t" : ",";
@@ -116,25 +120,37 @@ function parseCSV(text) {
   return { headers, rows };
 }
 
+// ── Decode HTML entities + literal escape sequences ───────────────────────────
+// NOTE: We do NOT touch actual HTML tags (<p>, <br> etc.) — those must be
+// preserved as-is for Shopify's Body (HTML) column.
 function decodeHTML(str) {
   if (!str) return "";
-  return str
-    .replace(/\\n/g, "\n")
-    .replace(/\\r/g, "\r")
-    .replace(/\\t/g, "\t")
-    .replace(/&#39;/gi, "\'")
-    .replace(/&apos;/gi, "\'")
-    .replace(/&quot;/gi, '"')
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
-    .replace(/&#x([0-9a-fA-F]+);/gi, (_, hex) =>
-      String.fromCharCode(parseInt(hex, 16)),
-    )
-    .replace(/&amp;/gi, "&")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+  return (
+    str
+      // 1. Literal \n \r \t escape sequences stored as plain text by WooCommerce
+      .replace(/\\n/g, "\n")
+      .replace(/\\r/g, "\r")
+      .replace(/\\t/g, "\t")
+      // 2. HTML entities — decode only entities, never touch tags
+      .replace(/&#39;/gi, "\'")
+      .replace(/&apos;/gi, "\'")
+      .replace(/&quot;/gi, '"')
+      .replace(/&nbsp;/gi, " ")
+      .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+      .replace(/&#x([0-9a-fA-F]+);/gi, (_, hex) =>
+        String.fromCharCode(parseInt(hex, 16)),
+      )
+      // &amp; must be last so we don't double-decode &#38; → & → &amp;
+      .replace(/&amp;/gi, "&")
+      // 3. Trim leading/trailing whitespace and collapse 3+ blank lines → 2
+      .replace(/\n{3,}/g, "\n\n")
+      .trim()
+  );
 }
 
+// ── Keep description HTML fully intact (no entity decoding on tag content) ────
+// Description fields already contain valid HTML like <p>text</p><br/>
+// We only need to fix literal \n sequences and mojibake — not re-encode tags.
 function cleanDescription(str) {
   if (!str) return "";
   return str
@@ -152,6 +168,7 @@ function cleanDescription(str) {
     .trim();
 }
 
+// ── Slugify title → Shopify handle ───────────────────────────────────────────
 function toHandle(title) {
   return (title || "")
     .toLowerCase()
@@ -159,6 +176,7 @@ function toHandle(title) {
     .replace(/^-+|-+$/g, "");
 }
 
+// ── Parse image URLs from WooCommerce "Images" cell ──────────────────────────
 function parseImages(raw) {
   if (!raw) return [];
   let urls;
@@ -172,6 +190,7 @@ function parseImages(raw) {
   return urls.filter((u) => /^https?:\/\//i.test(u));
 }
 
+// ── Empty Shopify continuation row (for extra images / variants) ──────────────
 function emptyRow(handle) {
   const row = { Handle: handle };
   SHOPIFY_COLUMNS.forEach((col) => {
@@ -180,6 +199,7 @@ function emptyRow(handle) {
   return row;
 }
 
+// ── Map one WooCommerce parent row → Shopify rows ─────────────────────────────
 function mapToShopify(wooRow) {
   const title = decodeHTML(wooRow["Name"] || "").trim();
   const handle = toHandle(title);
@@ -222,6 +242,7 @@ function mapToShopify(wooRow) {
     .map((v) => v.trim())
     .filter(Boolean);
 
+  // ── First/base row ────────────────────────────────────────────────────────
   const baseRow = {
     Handle: handle,
     Title: title,
@@ -263,6 +284,7 @@ function mapToShopify(wooRow) {
 
   const allRows = [baseRow];
 
+  // ── Extra image rows (image only, no variant data) ────────────────────────
   imageUrls.slice(1).forEach((imgUrl, idx) => {
     const r = emptyRow(handle);
     r["Image Src"] = imgUrl;
@@ -271,6 +293,7 @@ function mapToShopify(wooRow) {
     allRows.push(r);
   });
 
+  // ── Extra option1 variant rows ────────────────────────────────────────────
   if (opt1Values.length > 1) {
     opt1Values.slice(1).forEach((val) => {
       const r = emptyRow(handle);
@@ -297,6 +320,7 @@ function mapToShopify(wooRow) {
   return allRows;
 }
 
+// ── Main preprocessing pipeline ───────────────────────────────────────────────
 function preprocessCSV(text) {
   const { headers, rows } = parseCSV(text);
 
@@ -306,6 +330,7 @@ function preprocessCSV(text) {
     );
   }
 
+  // Validate WooCommerce format
   const hasName = headers.some((h) => h.trim() === "Name");
   if (!hasName) {
     throw new Error(
@@ -320,6 +345,7 @@ function preprocessCSV(text) {
     finalRows: 0,
   };
 
+  // 1. Remove variation rows
   const withoutVariations = rows.filter((row) => {
     const type = (row["Type"] || "").toLowerCase().trim();
     if (type === "variation" || type === "variable variation") {
@@ -329,21 +355,32 @@ function preprocessCSV(text) {
     return true;
   });
 
+  // 2. Remove rows where stock is 0, negative (e.g. -1, -2).
+  //    Empty stock = stock management OFF (unlimited) → KEEP.
+  //    Only remove when stock management is ON but value <= 0.
   const withStock = withoutVariations.filter((row) => {
-    const stock = (row["Stock"] || "").trim();
-    if (stock === "0") {
+    const stockRaw = (row["Stock"] ?? "").trim();
+    if (stockRaw === "") {
+      stats.removedZeroStock++;
+      return false;
+    } // blank = no stock, remove
+    const stockNum = Number(stockRaw);
+    if (!isNaN(stockNum) && stockNum <= 0) {
+      // 0, -1, -2, etc → remove
       stats.removedZeroStock++;
       return false;
     }
-    return true;
+    return true; // positive stock → keep
   });
 
+  // 3. Map to Shopify format
   const shopifyRows = withStock.flatMap((row) => mapToShopify(row));
   stats.finalRows = shopifyRows.length;
 
   return { columns: SHOPIFY_COLUMNS, rows: shopifyRows, stats };
 }
 
+// ── Provider ──────────────────────────────────────────────────────────────────
 export function MigrationProvider({ children }) {
   const [fileName, setFileName] = useState(null);
   const [processedData, setProcessedData] = useState(null);
@@ -367,12 +404,14 @@ export function MigrationProvider({ children }) {
       }
     };
 
+    // Step 1: try UTF-8
     const reader = new FileReader();
     reader.onload = (e) => {
       const text = e.target.result;
-
+      // Mojibake detector: UTF-8 Latin-1 chars misread show as Ã© Ã¨ Ã¼ etc.
       const hasMojibake = /Ã[\u0080-\u00FF]/.test(text);
       if (hasMojibake) {
+        // Step 2: re-read as ISO-8859-1 (Latin-1)
         const reader2 = new FileReader();
         reader2.onload = (e2) => runParse(e2.target.result);
         reader2.onerror = () => {
