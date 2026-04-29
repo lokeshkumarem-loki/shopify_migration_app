@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useMigration } from "../context/MigrationContext.jsx";
 
-// Convert rows + columns → CSV string
+
 function toCSVString(columns, rows) {
   const escape = (v) => {
     const s = String(v ?? "");
@@ -34,7 +34,7 @@ export default function PreviewPage({ onBack }) {
   const { processedData, fileName, reset } = useMigration();
   const [page, setPage] = useState(0);
   const [search, setSearch] = useState("");
-  const [visibleCols, setVisibleCols] = useState(null); // null = auto (first 10)
+  const [visibleCols, setVisibleCols] = useState(null); 
 
   if (!processedData) {
     return (
@@ -55,7 +55,7 @@ export default function PreviewPage({ onBack }) {
 
   const { columns, rows, stats } = processedData;
 
-  // default show first 10 columns
+  
   const displayCols = visibleCols ?? columns.slice(0, 12);
   const filteredRows = useMemo(() => {
     if (!search.trim()) return rows;
@@ -105,7 +105,6 @@ export default function PreviewPage({ onBack }) {
         ::-webkit-scrollbar-thumb { background: #c2d9a0; border-radius: 4px; }
       `}</style>
 
-      {/* Navbar */}
       <nav className="bg-white border-b border-gray-100 px-8 py-4 flex items-center justify-between sticky top-0 z-30">
         <div className="flex items-center gap-3">
           <button
@@ -155,7 +154,6 @@ export default function PreviewPage({ onBack }) {
           </div>
         </div>
 
-        {/* Step indicator */}
         <div className="flex items-center gap-2">
           {["Upload", "Process", "Preview & Download"].map((step, i) => (
             <div key={step} className="flex items-center gap-2">
@@ -203,7 +201,7 @@ export default function PreviewPage({ onBack }) {
       </nav>
 
       <main className="px-8 py-8">
-        {/* Stats bar */}
+     
         <div className="fade-up grid grid-cols-4 gap-4 mb-8">
           {[
             {
@@ -247,7 +245,7 @@ export default function PreviewPage({ onBack }) {
           ))}
         </div>
 
-        {/* Toolbar */}
+    
         <div
           className="fade-up bg-white rounded-xl border border-gray-100 shadow-sm mb-0 px-5 py-4 flex items-center justify-between"
           style={{
@@ -274,7 +272,7 @@ export default function PreviewPage({ onBack }) {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Search */}
+          
             <div className="relative">
               <svg
                 className="absolute left-3 top-1/2 -translate-y-1/2"
@@ -309,7 +307,7 @@ export default function PreviewPage({ onBack }) {
               />
             </div>
 
-            {/* Column toggle */}
+          
             <div className="relative group">
               <button className="text-sm font-medium px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:border-[#96BF48] flex items-center gap-1.5">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
@@ -380,7 +378,7 @@ export default function PreviewPage({ onBack }) {
           </div>
         </div>
 
-        {/* Table */}
+       
         <div
           className="fade-up bg-white rounded-b-xl border border-t-0 border-gray-100 shadow-sm overflow-hidden"
           style={{ animationDelay: "0.15s" }}
@@ -500,7 +498,7 @@ export default function PreviewPage({ onBack }) {
             </table>
           </div>
 
-          {/* Pagination */}
+         
           {totalPages > 1 && (
             <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-white">
               <span className="text-xs text-gray-400 font-medium">
@@ -568,7 +566,7 @@ export default function PreviewPage({ onBack }) {
           )}
         </div>
 
-        {/* Bottom download CTA */}
+  
         <div
           className="fade-up mt-8 bg-white rounded-2xl border border-gray-100 shadow-sm px-8 py-6 flex items-center justify-between"
           style={{ animationDelay: "0.2s" }}
