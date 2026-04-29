@@ -56,7 +56,6 @@ export default function UploadPage({ onNext }) {
         .upload-btn:active { transform: translateY(0px); }
       `}</style>
 
-      {/* Navbar */}
       <nav className="bg-white border-b border-gray-100 px-8 py-4 flex items-center justify-between">
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-2 mr-4">
@@ -89,7 +88,6 @@ export default function UploadPage({ onNext }) {
         </div>
       </nav>
 
-      {/* Hero */}
       <main className="flex flex-col items-center justify-center px-6 py-20">
         <h1
           className="sora text-5xl font-extrabold text-gray-900 text-center mb-3"
@@ -105,7 +103,6 @@ export default function UploadPage({ onNext }) {
           convert it into a Shopify-ready file instantly.
         </p>
 
-        {/* Steps indicator */}
         <div className="flex items-center gap-2 mb-10">
           {["Upload", "Process", "Preview & Download"].map((step, i) => (
             <div key={step} className="flex items-center gap-2">
@@ -130,7 +127,7 @@ export default function UploadPage({ onNext }) {
           ))}
         </div>
 
-        {/* Drop zone */}
+   
         <div
           onDragOver={onDragOver}
           onDragLeave={onDragLeave}
@@ -168,7 +165,7 @@ export default function UploadPage({ onNext }) {
 
           <p className="text-gray-400 text-sm mt-4">or drop CSV here</p>
 
-          {/* File chip */}
+        
           {localFile && (
             <div
               className="pop-in inline-flex items-center gap-2 mt-4 px-4 py-1.5 rounded-full text-sm font-semibold sora"
@@ -202,7 +199,7 @@ export default function UploadPage({ onNext }) {
 
           {error && <p className="mt-3 text-sm text-red-500">{error}</p>}
 
-          {/* Start migration button */}
+       
           {localFile && (
             <button
               onClick={handleMigrate}
